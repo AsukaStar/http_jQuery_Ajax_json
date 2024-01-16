@@ -1,0 +1,307 @@
+1.路径问题：
+普通java工程中的相对路径（在测试下）：/ 相对于当前模块
+普通java工程中的相对路径（在main方法中）：/ 相对于当前工程
+普通java工程可以通过类路径的绝对路径直接访问资源
+	①使用类加载器读取
+	当前类.class.getClassLoader().getResource()Stream("/path/to/resource.txt") 
+	表示从类路径的根路径开始读取资源
+	②当前类.class.getResourceAsstream()
+	仅仅是读取相对于当前类相同目录下的资源文件
+	加入/ 表示相对于从类路径的根目录读取资源
+在maven中，，默认情况下maven只会按照标准的目录结构查找处理文件
+project
+├── src
+│   ├── main
+│   │   ├── java
+│   │   ├── resources
+│   │   └── ...
+│   └── test
+│       ├── java
+│       └── resources
+└── ...
+在构建项目时，会将java源码编译到target/classes目录下，将主要的资源文件复制到target/classes目录下
+在maven项目中，如何访问类路径下的资源
+使用当前类.getClass().getResourceAsStream("/.....") 方法来访问位于类路径下的资源。
+/ 表示从类路径的开始。
+
+InputStream is = client01.class.getClassLoader().getResourceAsStream("文件1");可以直接获取到maven项目中resources下的文件1
+需要注意的是，传入的资源路径是相对于类路径的相对路径。如果资源文件位于resources目录的子目录中，你需要按照相应的目录结构来指定路径，例如getResourceAsStream("config/文件1")表示获取类路径下的resources/config目录中的文件1文件的输入流。
+
+
+mybatis复习
+搭建mybatis
+①创建maven工程，打包方式：jar
+②引入相关的依赖  mybatis核心，junit测试，mysql驱动等等依赖。
+③创建mybatis的核心配置文件，习惯命名为mybatis-config.xml，主要用于配置连接数据库的环境以及mybatis的全局配置文件
+	配置的内容
+		数据源（设置驱动，名字，密码，路径等属性）
+		引入mapper映射文件（以包的方式引入映射文件，满足两个条件，mapper接口和映射文件所在的包一致，mapper接口的名字必须和映射文件的名字一致）
+		设置事务管理器，管理事务
+		设置类型别名，可以使用别名表示一个具体类型（通过包的方式设置类型别名，指定包下所有类型将全部拥有别名，默认是类名，不区分大小写）
+		将下划线映射为驼峰（setting name="mapUnderscoreToCamelCase" value="true"）
+		引入外部配置文件（引入properties文件，可以在当前配置文件中使用${文件名.属性}的方式访问值）
+		<properties resource="jdbc.properties"/>
+④创建mapper接口（相当于以前的dao）
+⑤创建mybatis的映射文件（mapper接口名+.xml），存放于resource资源下
+	操作接口操作数据，保证两个一致
+	a> mapper接口的全类名和映射文件的命名空间（namespace）保持一致
+	b> mapper接口中方法的方法名要和映射文件的编写sql的标签的id值保持一致
+⑥通过junit测试功能
+	a 读取mybatis的核心配置文件（类路径下读取）
+	InputStream is = Resources.getResourceAsStream("mybatis-config.xml");
+
+	b 创建SqlSessionFactoryBuilder对象
+	SqlSessionFactoryBuilder sqlSessionFactoryBuilder = new SqlSessionFactoryBuilder();
+
+	c 通过核心配置文件所对应的字节输入流创建工厂类SqlSessionFactory，生产SqlSession对象
+	SqlSessionFactory sqlSessionFactory = sqlSessionFactoryBuilder.build(is);
+
+	d 创建SqlSession对象，此时通过SqlSession对象所操作的sql都必须手动提交或回滚事务
+	SqlSession sqlSession = sqlSessionFactory.openSession(true);
+
+	e通过代理模式创建UserMapper接口的代理实现类对象
+	UserMapper userMapper = sqlSession.getMapper(UserMapper.class);
+
+	f 调用UserMapper接口中的方法，就可以根据UserMapper的全类名匹配元素文件，通过调用的方法名匹配映射文件中的SQL标签，并执行标签中的SQL语句
+	int result = userMapper.insertUser();
+
+注意：
+	①SqlSession：代表Java程序和数据库之间的会话。（HttpSession是Java程序和浏览器之间的会话）
+	②查询标签的select必须设置属性resultType或者resultMap，用于设置实体类与数据库表的映射关系。
+		resultType：自动映射，用于属性名和表中字段名一致的情况
+		resultMap：自定义映射，用于一对多或多对一或字段名和属性名不一致的情况
+
+
+mybatis获取参数的两种方式：${}和#{}
+	${}的本质是字符串拼接，#{}的本质是占位符赋值
+	${}使用字符串拼接sql时，若为字符串类型或者日期类型，需要手动添加单引号
+	#{}使用占位符的方式拼接sql时，可以自动添加单引号
+
+单个字面量类型的参数
+	若mapper接口中的方法参数为单个时，此时可以使用${}和#{}以任意的名称获取参数的值，
+	注意：${}需要手动添加单引号
+
+多个字面量类型的参数：
+	若mapper接口中方法的参数为多个时，此时mybatis会自动将这些参数存储在一个map集合中，以arg0,arg1...为键，以参数为值；以
+	param1,param2...为键，以参数为值；此时只需要通过${}和#{}访问map集合中的键就可以获取相对应的值，
+	注意：${}需要手动添加单引号
+
+map集合类型的参数
+	若mapper接口中方法需要的参数为多个时，此时可以手动创建一个map集合，将这些数据放在map中。
+	只需要通过${}和#{}访问map集合的键就可以获取相对应的值，
+	注意:${}需要手动加单引号
+
+实体类类型为参数：
+	若mapper接口中的方法参数为实体类对象时，此时可以使用${}和#{}，通过访问实体类对象中的属性名获取属性值，
+	注意${}需要手动加单引号
+
+使用@Param注解标识参数：
+	可以通过@Param注解标识mapper接口中的方法参数，此时，会将这些参数放到一个map集合中，以@Param注解的value值为键，以参数为值，以
+	param1,param2...为键，以参数为值；只需要通过${}和#{}访问map集合的键就可以获取相对应的值，
+	注意：${}需要手动加单引号
+
+mybatis中的各种查询功能：
+	查询单个数据：<select id="getCount" resultType="_integer">
+	查询一条数据为map集合：<select id="getUserToMap" resultType="map">
+	查询多条数据为map集合：
+
+特殊的sql执行
+	模糊查询
+	批量删除
+	动态设置表名
+	
+
+自定义映射resultMap
+	当字段名与属性名不一致的情况下，如何处理映射关系：
+	1.为查询的字段名设置别名，和属性名保持一致
+	2.当字段名符合MySQL的要求使用，而属性符合java的要求使用，驼峰
+	在mybatis的全局配置文件中设置自动将下划线映射为驼峰，
+	满足规则为：emp_id:empId
+	3.使用resultMap自定义映射处理
+
+	resultMap处理字段和属性的映射关系
+	<!-- 
+		resultMap:设置自定义映射
+		id：设置自定义映射的唯一标识
+		type：查询数据要映射的实体类的类型
+		子标签：
+		id：设置主键的映射关系
+		result：设置普通字段的映射关系
+		property：设置映射关系中实体类的属性名
+		column：设置映射关系中表的字段名
+		association：设置多对一的映射关系
+    		collection：设置一对多的映射关系
+	-->
+	<resultMap id="userMap" type="User">
+    		<id property="id" column="id"></id>
+    		<result property="userName" column="user_name"></result>
+    		<result property="password" column="password"></result>
+    		<result property="age" column="age"></result>
+    		<result property="sex" column="sex"></result>
+	</resultMap>
+
+
+Spring复习
+	IOC：反转控制
+	反转了资源的获取方式，改由容器主动将资源推送给组件，
+	ClassPathXmlApplicationContext，ApplicationContext的实现类，通过读取类路径下的xml格式的配置文件创建ioc容器
+	
+基于xml管理bean
+①创建maven工程
+②引入依赖，引入junit，spring-context依赖
+③创建需要的类，HelloWorld
+④在spring的配置文件applicationContext.xml文件中配置bean
+<bean id="helloworld" class="com.atguigu.spring.bean.HelloWorld"></bean>
+⑤创建测试类测试
+注意：spring底层默认通过反射技术调用组件的无参构造器创建对象，组件类没有无参构造器时，会抛出异常
+
+获取bean
+①方式一：根据id获取
+②方式二：根据类型获取
+③方式三：根据id和类型
+
+注意：根据类型获取bean时，要求ioc容器中有且仅有指定类型的benan一个，多个会抛出异常
+组件实现了接口，可以通过接口类型获取，前提时bean唯一
+
+结论：根据类型来获取bean时，在满足bean唯一性的前提下，其实只是看：『对象 instanceof 指定的类
+型』的返回结果，只要返回的是true就可以认定为和类型匹配，能够获取到。
+
+依赖注入
+①setter注入
+	配置bean时为属性赋值
+	<bean id="studentOne" class="com.atguigu.spring.bean.Student">
+	<property name="属性名" value="属性值"></property>
+	</bean>
+
+	重要：通过组件的setXxx()方法给组件对象设置属性
+②构造器注入
+	<bean id="studentTwo" class="com.atguigu.spring.bean.Student">
+	<constructor-arg value="1002"></constructor-arg>
+	</bean>
+	
+	注意：根据构造器参数的顺序依次赋值
+③特殊值赋值
+- null值
+	<property name="name">
+		<null />
+	</property>
+- xml实体
+	特殊字符
+- CDATA节
+	解决特殊字符
+
+④为类类型属性赋值
+	-引用外部已声明的bean
+	配置Clazz类型的bean，在其他bean里引用
+	<property name="clazz" ref="clazzOne"></property>
+
+	-内部bean
+	在一个bean中再声明一个bean，内部bean只能用于给属性赋值，不能通过外部ioc容器获取，可以省略id
+
+	-级联属性赋值（不推荐）
+	<property name="clazz" ref="clazzOne"></property>
+    	<property name="clazz.clazzId" value="3333"></property>
+   	 <property name="clazz.clazzName" value="最强王者班"></property>
+⑤为数组类型属性赋值
+	<property name="hobbies">
+        	<array>
+           		<value>抽烟</value>
+            		<value>喝酒</value>
+            		<value>烫头</value>
+        	</array>
+    	</property>
+⑥为集合类型属性赋值
+	-为list集合类型属性赋值
+	<property name="students">
+        	<list>
+            		<ref bean="studentOne"></ref>
+            		<ref bean="studentTwo"></ref>
+            		<ref bean="studentThree"></ref>
+        	</list>
+   	 </property>
+	注意：若为set集合类型属性赋值，只需要将其中list标签改为set标签
+	 -为map集合类型属性赋值
+	<property name="teacherMap">
+        		<map>
+            			<entry>
+                			<key>
+                    				<value>10010</value>
+                			</key>
+               				<ref bean="teacherOne"></ref>
+            			</entry>
+            			<entry>
+                			<key>
+                    				<value>10086</value>
+                			</key>
+                			<ref bean="teacherTwo"></ref>
+            			</entry>
+        		</map>
+    	</property>
+
+引入外部属性文件
+<context:property-placeholder location="classpath:jdbc.properties"/>
+
+bean的作用域
+在Spring中可以通过配置bean标签的scope属性来指定bean的作用域范围，各取值含义参加下表：
+
+取值		含义					创建对象的时机
+singleton（默认）	在IOC容器中，这个bean的对象始终为单实例	IOC容器初始化时
+prototype	这个bean在IOC容器中有多个实例		获取bean时
+
+
+FactoryBean：FactoryBean类型的bean，在获取bean的时候得到的并不是class属性中配置的这个类的对象，而是
+
+getObject()方法的返回值。通过这种机制，Spring可以帮我们把复杂组件创建的详细过程和繁琐细节都屏蔽起来，只把最简洁的使用界面展示给我们。
+
+将来我们整合Mybatis时，Spring就是通过FactoryBean机制来帮我们创建SqlSessionFactory对象的。
+
+基于xml的自动装配：（次要）
+==使用bean标签的autowire属性设置自动装配效果
+==自动装配方式：byType，若在IOC中，没有任何一个兼容类型的bean能够为属性赋值，则该属性不装配，即值为默认值null，若在IOC中，有多个兼容类型的bean能够为属性赋值，则抛出异常
+==自动装配方式：byName，将自动装配的属性的属性名，作为bean的id在IOC容器中匹配相对应的bean进行赋值
+  
+
+基于注解管理bean（重要）
+==注解与扫描
+	<context:component-scan base-package="com.atguigu">
+	</context:component-scan>
+==注解管理bean的id
+	默认情况，类名首字母小写就是bean的id，
+	自定义bean的id，可通过标识组件注解的value属性设置自定义的bean的id
+	@Service("userService")
+==基于注解的自动装配
+	@Autowired注解:在成员变量上直接标记@Autowired注解即可完成自动装配，不需要提供setXxx()方法。
+	@Autowired工作流程：
+		-首先根据所需要的组件类型到ioc容器中进行查找
+		-能够找到唯一地bean，直接装配
+		-如果完全找不到匹配这个类型的bean：装配失败
+		-和所需类型的bean不止一个，
+			没有@Qualifier注解：根据@Autowired标记位置成员变量的变量名作为bean的id进行匹配
+			能够找到：执行装配
+			找不到：装配失败
+			使用@Qualifier注解：根据@Qualifier注解中指定的名称作为bean的id进行匹配
+			能够找到：执行装配
+			找不到：装配失败
+
+SpringMVC：
+什么是mvc，软件架构思想，按照model，模型层，view，视图层，controller，控制层
+M：Model，模型层，指工程中的JavaBean，作用是处理数据
+V：View，视图层，指工程中的html或jsp等页面，作用是与用户进行交互，展示数据
+C：Controller，控制层，指工程中的servlet，作用是接收请求和响应浏览器
+MVC的工作流程：用户通过视图层（浏览器）发送请求到服务器，再服务器中请求被Controller接收，Controller调用响应的Model层处理数据，
+处理完的数据将结果返回给Controller，Controller再根据请求处理的结果，找到响应的view视图，渲染数据后响应给浏览器
+
+什么是springmvc：三层架构，表述层，业务逻辑层，数据访问层
+
+开始
+①创建maven工程，添加web模块，打包方式jar
+②引入springmvc相关的依赖
+③配置web.xml，注册Springmvc的前端控制器DispatcherServlet，
+默认配置方式：
+springMVC的配置文件默认位于WEB-INF下，默认名称为springMVCservlet.xml，
+扩展配置方式：
+可通过init-param标签设置SpringMVC配置文件的位置和名称，通过load-on-startup标签设置SpringMVC前端控制器DispatcherServlet的初始化时间
+
+
+
+
